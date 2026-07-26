@@ -127,7 +127,7 @@ func LoadBuiltinsFromSource(ctx context.Context, contents []byte, path string) (
 
 	doc := document.NewDocument(uri.File(path), contents, tree)
 	functions := doc.Functions()
-	symbols := doc.Symbols()
+	symbols := query.DocumentSymbols(doc, query.IncludeClassSymbols())
 
 	types := query.Types(doc, tree.RootNode())
 	typeMap := make(map[string]query.Type)

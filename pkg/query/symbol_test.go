@@ -25,7 +25,7 @@ z = True
 	assert.Equal(t, []string{"x", "y", "z"}, names)
 }
 
-func TestQueryDocumentSymbolsIncludesClasses(t *testing.T) {
+func TestQueryDocumentSymbolsExcludesClasses(t *testing.T) {
 	f := newQueryFixture(t, "", `
 class Foo:
   pass
@@ -35,6 +35,23 @@ bar = Foo
 
 	doc := f.document()
 	symbols := query.DocumentSymbols(doc)
+	names := make([]string, len(symbols))
+	for i, sym := range symbols {
+		names[i] = sym.Name
+	}
+	assert.Equal(t, []string{"bar"}, names)
+}
+
+func TestQueryDocumentSymbolsIncludesClassesWhenEnabled(t *testing.T) {
+	f := newQueryFixture(t, "", `
+class Foo:
+  pass
+
+bar = Foo
+`)
+
+	doc := f.document()
+	symbols := query.DocumentSymbols(doc, query.IncludeClassSymbols())
 	names := make([]string, len(symbols))
 	for i, sym := range symbols {
 		names[i] = sym.Name

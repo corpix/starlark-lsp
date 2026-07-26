@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
@@ -57,6 +58,27 @@ func TestReadWithLoadPath(t *testing.T) {
 	assert.Equal(t, 1, len(syms))
 	if len(syms) == 1 {
 		assert.Equal(t, "foo", syms[0].Name)
+		assert.Equal(t, uri.File(filepath.Join(cwd, "stubs/acme/api.star")), syms[0].Location.URI)
+	}
+}
+
+func TestReadWithLoadPathIncludesStubClassSymbols(t *testing.T) {
+	f := newFixture(t)
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll("stubs/acme", 0755))
+	require.NoError(t, os.WriteFile("doc1", []byte(`load("acme/api.star", "Link")`), 0644))
+	require.NoError(t, os.WriteFile("stubs/acme/api.star", []byte("class Link:\n  pass\n"), 0644))
+	WithLoadPaths([]string{"stubs"})(f.m)
+
+	doc, err := f.m.Read(f.ctx, uri.File("doc1"))
+	require.NoError(t, err)
+	assert.Empty(t, doc.Diagnostics())
+	syms := doc.Symbols()
+	assert.Equal(t, 1, len(syms))
+	if len(syms) == 1 {
+		assert.Equal(t, "Link", syms[0].Name)
+		assert.Equal(t, protocol.SymbolKindClass, syms[0].Kind)
 		assert.Equal(t, uri.File(filepath.Join(cwd, "stubs/acme/api.star")), syms[0].Location.URI)
 	}
 }

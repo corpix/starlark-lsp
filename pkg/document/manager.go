@@ -30,6 +30,7 @@ type Manager struct {
 	readDocFunc     ReadDocumentFunc
 	resolveUriFunc  ResolveURIFunc
 	resolveLoadFunc ResolveLoadFunc
+	loadPaths       []string
 }
 
 func NewDocumentManager(opts ...ManagerOpt) *Manager {
@@ -84,6 +85,7 @@ func WithLoadPaths(paths []string) ManagerOpt {
 			}
 			roots = append(roots, filepath.Clean(path))
 		}
+		manager.loadPaths = append(manager.loadPaths, roots...)
 
 		previous := manager.resolveLoadFunc
 		manager.resolveLoadFunc = func(path string, relativeTo uri.URI) (uri.URI, error) {
@@ -149,6 +151,18 @@ func loadURIExists(u uri.URI) bool {
 	return !info.IsDir()
 }
 
+func loadURIUnderRoot(u uri.URI, root string) bool {
+	fn, err := filename(u)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, filepath.Clean(fn))
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
 func filename(u uri.URI) (fn string, err error) {
 	defer func() {
 		// recover from non-file URI in uri.Filename()
@@ -176,6 +190,15 @@ func canonicalFileURI(u uri.URI, base uri.URI) uri.URI {
 		return u
 	}
 	return uri.File(fn)
+}
+
+func (m *Manager) useStubDocument(u uri.URI) bool {
+	for _, path := range m.loadPaths {
+		if loadURIUnderRoot(u, path) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) Initialize(params *protocol.InitializeParams) {
@@ -286,7 +309,11 @@ func (m *Manager) parse(ctx context.Context, uri uri.URI, input []byte, parseSta
 			return nil, err
 		}
 
-		doc = m.newDocFunc(uri, input, tree)
+		if m.useStubDocument(uri) {
+			doc = NewStubDocument(uri, input, tree)
+		} else {
+			doc = m.newDocFunc(uri, input, tree)
+		}
 	}
 
 	parseState[uri] = doc

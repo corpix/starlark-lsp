@@ -8,9 +8,30 @@ import (
 	sitter "github.com/smacker/go-tree-sitter"
 )
 
+type SymbolOption func(*symbolOptions)
+
+type symbolOptions struct {
+	includeClasses bool
+}
+
+func IncludeClassSymbols() SymbolOption {
+	return func(opts *symbolOptions) {
+		opts.includeClasses = true
+	}
+}
+
+func newSymbolOptions(options []SymbolOption) symbolOptions {
+	var opts symbolOptions
+	for _, option := range options {
+		option(&opts)
+	}
+	return opts
+}
+
 // Get all symbols defined at the same level as the given node.
 // If before != nil, only include symbols that appear before that node.
-func SiblingSymbols(doc DocumentContent, node, before *sitter.Node) []Symbol {
+func SiblingSymbols(doc DocumentContent, node, before *sitter.Node, options ...SymbolOption) []Symbol {
+	opts := newSymbolOptions(options)
 	var symbols []Symbol
 	for n := node; n != nil && NodeBefore(n, before); n = n.NextNamedSibling() {
 		var symbol Symbol
@@ -19,13 +40,15 @@ func SiblingSymbols(doc DocumentContent, node, before *sitter.Node) []Symbol {
 		case NodeTypeExpressionStatement:
 			symbol = ExtractVariableAssignment(doc, n)
 		case NodeTypeClassDef:
-			name := n.ChildByFieldName(FieldName)
-			if name != nil {
-				symbol.Name = doc.Content(name)
-				symbol.Kind = protocol.SymbolKindClass
-				symbol.Location = protocol.Location{
-					Range: NodeRange(n),
-					URI:   doc.URI(),
+			if opts.includeClasses {
+				name := n.ChildByFieldName(FieldName)
+				if name != nil {
+					symbol.Name = doc.Content(name)
+					symbol.Kind = protocol.SymbolKindClass
+					symbol.Location = protocol.Location{
+						Range: NodeRange(n),
+						URI:   doc.URI(),
+					}
 				}
 			}
 		case NodeTypeFunctionDef:
@@ -127,8 +150,8 @@ func SymbolsInScope(doc DocumentContent, node *sitter.Node) []Symbol {
 }
 
 // DocumentSymbols returns all symbols with document-wide visibility.
-func DocumentSymbols(doc DocumentContent) []Symbol {
-	return SiblingSymbols(doc, doc.Tree().RootNode().NamedChild(0), nil)
+func DocumentSymbols(doc DocumentContent, options ...SymbolOption) []Symbol {
+	return SiblingSymbols(doc, doc.Tree().RootNode().NamedChild(0), nil, options...)
 }
 
 // Returns only the symbols that occur before the node given if any, otherwise return all symbols.

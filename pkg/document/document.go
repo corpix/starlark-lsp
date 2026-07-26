@@ -47,13 +47,21 @@ type Document interface {
 type NewDocumentFunc func(u uri.URI, input []byte, tree *sitter.Tree) Document
 
 func NewDocument(u uri.URI, input []byte, tree *sitter.Tree) Document {
+	return newDocument(u, input, tree)
+}
+
+func NewStubDocument(u uri.URI, input []byte, tree *sitter.Tree) Document {
+	return newDocument(u, input, tree, query.IncludeClassSymbols())
+}
+
+func newDocument(u uri.URI, input []byte, tree *sitter.Tree, symbolOptions ...query.SymbolOption) Document {
 	doc := &document{
 		uri:   u,
 		input: input,
 		tree:  tree,
 	}
 	doc.functions = query.Functions(doc, tree.RootNode())
-	doc.symbols = query.DocumentSymbols(doc)
+	doc.symbols = query.DocumentSymbols(doc, symbolOptions...)
 	doc.parseLoadStatements()
 	return doc
 }
