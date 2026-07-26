@@ -18,6 +18,16 @@ func SiblingSymbols(doc DocumentContent, node, before *sitter.Node) []Symbol {
 		switch n.Type() {
 		case NodeTypeExpressionStatement:
 			symbol = ExtractVariableAssignment(doc, n)
+		case NodeTypeClassDef:
+			name := n.ChildByFieldName(FieldName)
+			if name != nil {
+				symbol.Name = doc.Content(name)
+				symbol.Kind = protocol.SymbolKindClass
+				symbol.Location = protocol.Location{
+					Range: NodeRange(n),
+					URI:   doc.URI(),
+				}
+			}
 		case NodeTypeFunctionDef:
 			sig := ExtractSignature(doc, n)
 			symbol = sig.Symbol()

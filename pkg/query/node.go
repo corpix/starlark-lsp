@@ -4,6 +4,7 @@ const (
 	NodeTypeModule              = "module"
 	NodeTypeCall                = "call"
 	NodeTypeArgList             = "argument_list"
+	NodeTypeClassDef            = "class_definition"
 	NodeTypeFunctionDef         = "function_definition"
 	NodeTypeParameters          = "parameters"
 	NodeTypeKeywordArgument     = "keyword_argument"

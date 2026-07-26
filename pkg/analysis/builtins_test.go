@@ -97,13 +97,16 @@ func TestLoadBuiltinsFromFSEmbed(t *testing.T) {
 	assert.Equal(t, []string{"os"}, symbolNames(builtins.Symbols))
 	osSym := builtins.Symbols[0]
 	assert.Equal(t, protocol.SymbolKindVariable, osSym.Kind)
-	assert.Equal(t, 2, len(osSym.Children))
+	assert.Equal(t, 3, len(osSym.Children))
 	environSym := osSym.Children[0]
 	assert.Equal(t, "environ", environSym.Name)
 	assert.Equal(t, protocol.SymbolKindField, environSym.Kind)
 	getcwdSym := osSym.Children[1]
 	assert.Equal(t, "getcwd", getcwdSym.Name)
 	assert.Equal(t, protocol.SymbolKindMethod, getcwdSym.Kind)
+	linkSym := osSym.Children[2]
+	assert.Equal(t, "Link", linkSym.Name)
+	assert.Equal(t, protocol.SymbolKindField, linkSym.Kind)
 
 	assert.Equal(t, 1, len(builtins.Methods))
 	assert.Equal(t, []string{"curl"}, maps.Keys(builtins.Methods))
