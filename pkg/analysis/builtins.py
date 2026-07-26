@@ -17,6 +17,10 @@ def bool(x) -> bool:
   """`bool(x)` interprets `x` as a Boolean value---`True` or `False`. With no argument, `bool()` returns `False`."""
   pass
 
+def bytes(x) -> Bytes:
+  """`bytes(x)` converts its argument to a `bytes`."""
+  pass
+
 def chr(i):
   """`chr(i)` returns a string that encodes the single Unicode code point whose value is specified by the integer `i`. `chr` fails unless 0 ≤ `i` ≤ 0x10FFFF."""
   pass
@@ -93,7 +97,7 @@ def reversed(x) -> List:
   """`reversed(x)` returns a new list containing the elements of the iterable sequence x in reverse order."""
   pass
 
-def set(x):
+def set(x) -> Set:
   """`set(x)` returns a new set containing the elements of the iterable x. With no argument, `set()` returns a new empty set."""
   pass
 
@@ -117,8 +121,13 @@ def zip() -> List:
   """`zip()` returns a new list of n-tuples formed from corresponding elements of each of the n iterable sequences provided as arguments to `zip`.  That is, the first tuple contains the first element of each of the sequences, the second element contains the second element of each of the sequences, and so on.  The result list is only as long as the shortest of the input sequences."""
   pass
 
+class Bytes:
+  def elems(self):
+    """`b.elems()` returns an opaque iterable value containing successive int elements of b. Its type is `"bytes.elems"`, and its string representation is of the form `b"...".elems()`."""
+    pass
+
 class Dict:
-  def clear(self):
+  def clear(self) -> None:
     """`D.clear()` removes all the entries of dictionary D and returns `None`. It fails if the dictionary is frozen or if there are active iterators."""
     pass
 
@@ -184,8 +193,68 @@ class List:
     pass
 
 class Set:
-  def union(self, iterable):
-    """`S.union(iterable)` returns a new set into which have been inserted all the elements of set S and all the elements of the argument, which must be iterable."""
+  def add(self, x) -> None:
+    """`S.add(x)` adds the value `x` to the set `S`. It returns `None`."""
+    pass
+
+  def clear(self) -> None:
+    """`S.clear()` removes all elements from the set `S`. It returns `None`."""
+    pass
+
+  def difference(self, *others) -> Set:
+    """`S.difference(*others)` returns a new set containing elements found in the set S but not in any of the collections `*others`."""
+    pass
+
+  def difference_update(self, *others) -> None:
+    """`S.difference_update(*others)` removes from set S any elements found in any of the collections `*others`. It returns `None`."""
+    pass
+
+  def discard(self, x) -> None:
+    """`S.discard(x)` removes the value `x` from the set `S` if present. It returns `None`."""
+    pass
+
+  def intersection(self, *others) -> Set:
+    """`S.intersection(*others)` returns a new set containing only elements found in set S and all of the collections `*others`."""
+    pass
+
+  def intersection_update(self, *others) -> None:
+    """`S.intersection_update(*others)` removes from set S any elements not found in all of the collections `*others`. It returns `None`."""
+    pass
+
+  def isdisjoint(self, x) -> bool:
+    """`S.isdisjoint(x)` returns `True` if the set `S` and the collection `x` do not have any elements in common."""
+    pass
+
+  def issubset(self, x) -> bool:
+    """`S.issubset(x)` returns `True` if every element of set S is present in the collection `x`."""
+    pass
+
+  def issuperset(self, x) -> bool:
+    """`S.issuperset(x)` returns `True` if every element of collection `x` is present in set S."""
+    pass
+
+  def pop(self):
+    """`S.pop()` removes and returns the first element of set S."""
+    pass
+
+  def remove(self, x) -> None:
+    """`S.remove(x)` removes the value `x` from the set `S`. It returns `None`."""
+    pass
+
+  def symmetric_difference(self, x) -> Set:
+    """`S.symmetric_difference(x)` returns a new set containing elements found only in set S or only in collection `x`."""
+    pass
+
+  def symmetric_difference_update(self, x) -> None:
+    """`S.symmetric_difference_update(x)` updates set S to contain elements found only in set S or only in collection `x`. It returns `None`."""
+    pass
+
+  def union(self, *others) -> Set:
+    """`S.union(*others)` returns a new set containing elements found in set S or any of the collections `*others`."""
+    pass
+
+  def update(self, *others) -> None:
+    """`S.update(*others)` inserts into set S all elements found in any of the collections `*others`. It returns `None`."""
     pass
 
 class String:
@@ -328,4 +397,3 @@ class String:
   def upper(self) -> String:
     """`S.upper()` returns a copy of the string S with letters converted to uppercase."""
     pass
-

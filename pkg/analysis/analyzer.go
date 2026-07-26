@@ -8,12 +8,20 @@ import (
 )
 
 type Analyzer struct {
-	builtins *Builtins
-	context  context.Context
-	logger   *zap.Logger
+	builtins                  *Builtins
+	builtinCompletionFallback bool
+	context                   context.Context
+	logger                    *zap.Logger
 }
 
 type AnalyzerOption func(*Analyzer) error
+
+func WithBuiltinCompletionFallback(enabled bool) AnalyzerOption {
+	return func(analyzer *Analyzer) error {
+		analyzer.builtinCompletionFallback = enabled
+		return nil
+	}
+}
 
 func NewAnalyzer(ctx context.Context, opts ...AnalyzerOption) (*Analyzer, error) {
 	analyzer := Analyzer{

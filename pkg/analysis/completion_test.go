@@ -283,8 +283,9 @@ func TestMemberCompletion(t *testing.T) {
 		expected   []string
 	}{
 		{doc: "pr", char: 2, expected: []string{"print"}},
-		{doc: "pr.end", char: 6, expected: []string{"endswith"}},
-		{doc: `"".isa`, char: 5, expected: []string{"isalnum", "isalpha"}},
+		{doc: "pr.end", char: 6, expected: []string{}},
+		{doc: "thing.", char: 6, expected: []string{}},
+		{doc: `"".isa`, char: 6, expected: []string{"isalnum", "isalpha"}},
 		{doc: `[].ex`, char: 5, expected: []string{"extend"}},
 	}
 	for _, tt := range tests {
@@ -294,6 +295,24 @@ func TestMemberCompletion(t *testing.T) {
 			assertCompletionResult(t, tt.expected, result)
 		})
 	}
+}
+
+func TestBuiltinMemberCompletionFallback(t *testing.T) {
+	f := newFixture(t)
+	_ = WithBuiltinCompletionFallback(true)(f.a)
+	f.builtins.Members = []query.Symbol{
+		{Name: "same", Kind: protocol.SymbolKindMethod},
+		{Name: "same", Kind: protocol.SymbolKindMethod},
+		{Name: "other", Kind: protocol.SymbolKindMethod},
+	}
+
+	doc := f.MainDoc(`thing.s`)
+	result := f.a.Completion(doc, protocol.Position{Character: 7})
+	assertCompletionResult(t, []string{"same"}, result)
+
+	doc = f.MainDoc(`thing.`)
+	result = f.a.Completion(doc, protocol.Position{Character: 6})
+	assertCompletionResult(t, []string{"same", "other"}, result)
 }
 
 func TestTypedMemberCompletion(t *testing.T) {
@@ -317,6 +336,9 @@ func TestTypedMemberCompletion(t *testing.T) {
 		{doc: `"".c`, char: 4, expected: []string{"capitalize", "codepoint_ords", "count", "codepoints"}},
 		{doc: `[].c`, char: 4, expected: []string{"clear"}},
 		{doc: `{}.i`, char: 4, expected: []string{"items"}},
+		{doc: `set().u`, char: 7, expected: []string{"union", "update"}},
+		{doc: `bytes("").e`, char: 10, expected: []string{"elems"}},
+		{doc: `b"".e`, char: 5, expected: []string{"elems"}},
 		{doc: `s = ""
 s.c`, line: 1, char: 3, expected: []string{"capitalize", "codepoint_ords", "count", "codepoints"}},
 		{doc: `s = []
@@ -325,6 +347,44 @@ s.c`, line: 1, char: 3, expected: []string{"clear"}},
 s.i`, line: 1, char: 3, expected: []string{"items"}},
 		{doc: `foo().c`, char: 7, expected: []string{"capitalize", "codepoint_ords", "count", "codepoints"}},
 		{doc: `bar().`, char: 6, expected: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.doc, func(t *testing.T) {
+			doc := f.MainDoc(tt.doc)
+			result := f.a.Completion(doc, protocol.Position{Line: tt.line, Character: tt.char})
+			assertCompletionResult(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAppTypedMemberCompletion(t *testing.T) {
+	f := newFixture(t)
+	f.ParseBuiltins(`
+class Link:
+  url: str
+  def curl(self) -> str:
+    pass
+
+def make_link() -> Link:
+  pass
+
+def make_blob():
+  pass
+`)
+
+	tests := []struct {
+		doc        string
+		line, char uint32
+		expected   []string
+	}{
+		{doc: `make_link().`, char: 12, expected: []string{"url", "curl"}},
+		{doc: `make_link().c`, char: 13, expected: []string{"curl"}},
+		{doc: `make_link().u`, char: 13, expected: []string{"url"}},
+		{doc: `make_blob().`, char: 12, expected: []string{}},
+		{doc: `link: Link = None
+link.u`, line: 1, char: 6, expected: []string{"url"}},
+		{doc: `def fn(link: Link):
+  link.c`, line: 1, char: 8, expected: []string{"curl"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.doc, func(t *testing.T) {

@@ -24,13 +24,26 @@ func SymbolMatching(symbols []query.Symbol, name string) query.Symbol {
 
 func SymbolsStartingWith(symbols []query.Symbol, prefix string) []query.Symbol {
 	if prefix == "" {
-		return symbols
+		return UniqueSymbolsByName(symbols)
 	}
 	result := []query.Symbol{}
 	for _, sym := range symbols {
 		if strings.HasPrefix(sym.Name, prefix) {
 			result = append(result, sym)
 		}
+	}
+	return UniqueSymbolsByName(result)
+}
+
+func UniqueSymbolsByName(symbols []query.Symbol) []query.Symbol {
+	seen := make(map[string]bool, len(symbols))
+	result := make([]query.Symbol, 0, len(symbols))
+	for _, sym := range symbols {
+		if seen[sym.Name] {
+			continue
+		}
+		seen[sym.Name] = true
+		result = append(result, sym)
 	}
 	return result
 }
@@ -54,7 +67,7 @@ func (a *Analyzer) Completion(doc document.Document, pos protocol.Position) *pro
 	symbols := []query.Symbol{}
 
 	if ok {
-		symbols = a.completeExpression(doc, nodes, pt)
+		symbols = UniqueSymbolsByName(a.completeExpression(doc, nodes, pt))
 	}
 
 	completionList := &protocol.CompletionList{
@@ -135,11 +148,11 @@ func (a *Analyzer) completeExpression(doc document.Document, nodes []*sitter.Nod
 }
 
 // Returns a list of available symbols for completion as follows:
-// - If in a function argument list, include keyword args for that function
-// - Add symbols in scope for the node at point, excluding symbols at the module
-//   level (document symbols), because the document already has those computed
-// - Add document symbols
-// - Add builtins
+//   - If in a function argument list, include keyword args for that function
+//   - Add symbols in scope for the node at point, excluding symbols at the module
+//     level (document symbols), because the document already has those computed
+//   - Add document symbols
+//   - Add builtins
 func (a *Analyzer) availableSymbols(doc document.Document, nodeAtPoint *sitter.Node, pt sitter.Point) []query.Symbol {
 	symbols := []query.Symbol{}
 	if nodeAtPoint != nil {
@@ -296,6 +309,10 @@ func (a *Analyzer) findAttrObjectExpression(nodes []*sitter.Node, pt sitter.Poin
 	var parentNode *sitter.Node
 	for i := len(nodes) - 1; i >= 0; i-- {
 		parentNode = nodes[i]
+		if parentNode.Type() == "." {
+			dot = parentNode
+			break
+		}
 		dot = query.FindChildNode(parentNode, func(n *sitter.Node) int {
 			if query.PointBeforeOrEqual(n.EndPoint(), searchRange.StartPoint) {
 				return -1
@@ -317,9 +334,12 @@ func (a *Analyzer) findAttrObjectExpression(nodes []*sitter.Node, pt sitter.Poin
 	}
 	if dot != nil {
 		expr := parentNode.PrevSibling()
-		for n := dot; n != parentNode; n = n.Parent() {
+		for n := dot; n != nil; n = n.Parent() {
 			if n.PrevSibling() != nil {
 				expr = n.PrevSibling()
+				break
+			}
+			if n == parentNode && parentNode.Type() != "." {
 				break
 			}
 		}
@@ -341,6 +361,9 @@ func (a *Analyzer) analyzeType(doc document.Document, node *sitter.Node) string 
 	}
 	switch node.Type() {
 	case query.NodeTypeString:
+		if isBytesLiteral(doc.Content(node)) {
+			return "Bytes"
+		}
 		return "String"
 	case query.NodeTypeDictionary:
 		return "Dict"
@@ -349,6 +372,9 @@ func (a *Analyzer) analyzeType(doc document.Document, node *sitter.Node) string 
 	case query.NodeTypeIdentifier:
 		sym, found := a.FindDefinition(doc, node, doc.Content(node))
 		if found {
+			if sym.TypeName != "" {
+				return sym.TypeName
+			}
 			switch sym.Kind {
 			case protocol.SymbolKindString:
 				return "String"
@@ -356,39 +382,71 @@ func (a *Analyzer) analyzeType(doc document.Document, node *sitter.Node) string 
 				return "Dict"
 			case protocol.SymbolKindArray:
 				return "List"
+			case protocol.SymbolKindFunction:
+				return "function"
+			case protocol.SymbolKindClass:
+				return sym.Name
 			}
 		}
 	case query.NodeTypeCall:
-		fnName := doc.Content(node.ChildByFieldName("function"))
+		fn := node.ChildByFieldName("function")
+		var fnName string
+		if fn != nil {
+			fnName = doc.Content(fn)
+		}
 		args := node.ChildByFieldName("arguments")
 		sig, found := a.signatureInformation(doc, node, callWithArguments{fnName: fnName, argsNode: args})
 		if found && sig.ReturnType != "" {
-			switch strings.ToLower(sig.ReturnType) {
-			case "str", "string":
-				return "String"
-			case "list":
-				return "List"
-			case "dict":
-				return "Dict"
-			default:
-				return sig.ReturnType
+			if t := query.NormalizeTypeName(sig.ReturnType); t != "" {
+				return t
+			}
+		}
+		if fn != nil && fn.Type() == query.NodeTypeIdentifier {
+			if sym, found := a.FindDefinition(doc, fn, fnName); found && sym.Kind == protocol.SymbolKindClass {
+				return sym.Name
 			}
 		}
 	}
 	return ""
 }
 
+func isBytesLiteral(content string) bool {
+	content = strings.ToLower(strings.TrimSpace(content))
+	return len(content) >= 2 &&
+		((content[0] == 'b' && (content[1] == '\'' || content[1] == '"')) ||
+			(len(content) >= 3 &&
+				((content[0] == 'r' && content[1] == 'b') ||
+					(content[0] == 'b' && content[1] == 'r')) &&
+				(content[2] == '\'' || content[2] == '"')))
+}
+
 func (a *Analyzer) availableMembers(doc document.Document, node *sitter.Node) []query.Symbol {
 	if t := a.analyzeType(doc, node); t != "" {
-		if class, found := a.builtins.Types[t]; found {
-			return class.Members
+		if members, found := a.membersForType(doc, t); found {
+			return members
 		}
 		switch t {
-		case "None", "bool", "int", "float":
+		case "None", "bool", "int", "float", "Tuple", "function":
 			return []query.Symbol{}
 		}
+		return []query.Symbol{}
 	}
-	return a.builtins.Members
+	if a.builtinCompletionFallback {
+		return a.builtins.Members
+	}
+	return []query.Symbol{}
+}
+
+func (a *Analyzer) membersForType(doc document.Document, typeName string) ([]query.Symbol, bool) {
+	if class, found := a.builtins.Types[typeName]; found {
+		return class.Members, true
+	}
+	for _, sym := range append(append([]query.Symbol{}, doc.Symbols()...), a.builtins.Symbols...) {
+		if sym.Name == typeName {
+			return sym.Children, true
+		}
+	}
+	return nil, false
 }
 
 func (a *Analyzer) FindDefinition(doc document.Document, node *sitter.Node, name string) (query.Symbol, bool) {

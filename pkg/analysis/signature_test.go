@@ -89,3 +89,26 @@ d.pop()`)
 	assert.Equal(t, "(key)", help.Signatures[0].Label)
 	assert.Equal(t, uint32(0), help.ActiveParameter)
 }
+
+func TestUnknownMethodSignatureHelp(t *testing.T) {
+	f := newFixture(t)
+	_ = WithStarlarkBuiltins()(f.a)
+	doc := f.MainDoc(`x.endswith()`)
+
+	help := f.a.SignatureHelp(doc, protocol.Position{Character: 11})
+	assert.Nil(t, help)
+}
+
+func TestUnknownMethodSignatureHelpWithBuiltinFallback(t *testing.T) {
+	f := newFixture(t)
+	_ = WithStarlarkBuiltins()(f.a)
+	_ = WithBuiltinCompletionFallback(true)(f.a)
+	doc := f.MainDoc(`x.endswith()`)
+
+	help := f.a.SignatureHelp(doc, protocol.Position{Character: 11})
+	assert.NotNil(t, help)
+	if help == nil {
+		return
+	}
+	assert.Equal(t, "(suffix) -> bool", help.Signatures[0].Label)
+}

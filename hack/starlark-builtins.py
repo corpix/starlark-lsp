@@ -46,6 +46,9 @@ def repr(x) -> String:
 def reversed(x) -> List:
   pass
 
+def set(x) -> Set:
+  pass
+
 def sorted(x) -> List:
   pass
 
@@ -58,11 +61,30 @@ def type(x) -> String:
 def zip() -> List:
   pass
 
+class Bytes:
+  def elems(self):
+    pass
+
 class Dict:
+  def clear(self) -> None:
+    pass
+
+  def get(self, key):
+    pass
+
   def items(self) -> List:
     pass
 
   def keys(self) -> List:
+    pass
+
+  def pop(self, key):
+    pass
+
+  def popitem(self):
+    pass
+
+  def setdefault(self, key):
     pass
 
   def update(self) -> None:
@@ -87,7 +109,59 @@ class List:
   def insert(self, i, x) -> None:
     pass
 
+  def pop(self):
+    pass
+
   def remove(self, x) -> None:
+    pass
+
+class Set:
+  def add(self, x) -> None:
+    pass
+
+  def clear(self) -> None:
+    pass
+
+  def difference(self, *others) -> Set:
+    pass
+
+  def difference_update(self, *others) -> None:
+    pass
+
+  def discard(self, x) -> None:
+    pass
+
+  def intersection(self, *others) -> Set:
+    pass
+
+  def intersection_update(self, *others) -> None:
+    pass
+
+  def isdisjoint(self, x) -> bool:
+    pass
+
+  def issubset(self, x) -> bool:
+    pass
+
+  def issuperset(self, x) -> bool:
+    pass
+
+  def pop(self):
+    pass
+
+  def remove(self, x) -> None:
+    pass
+
+  def symmetric_difference(self, x) -> Set:
+    pass
+
+  def symmetric_difference_update(self, x) -> None:
+    pass
+
+  def union(self, *others) -> Set:
+    pass
+
+  def update(self, *others) -> None:
     pass
 
 class String:

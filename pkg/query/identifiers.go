@@ -6,7 +6,6 @@ import (
 
 // Extract all identifiers from the subtree. Include an extra empty identifier
 // "" if there is an error node with a trailing period.
-//
 const Identifiers = `
 [(module) @module
  (identifier) @id
@@ -44,6 +43,15 @@ func ExtractIdentifiers(doc DocumentContent, nodes []*sitter.Node, limit *sitter
 					case "id":
 						if limit != nil && PointAfter(c.Node.StartPoint(), *limit) {
 							identifiers = append(identifiers, "")
+						} else if limit != nil && c.Node.StartPoint().Row == limit.Row && PointBefore(*limit, c.Node.EndPoint()) {
+							content := doc.Content(c.Node)
+							prefixLen := int(limit.Column - c.Node.StartPoint().Column)
+							if prefixLen < 0 {
+								prefixLen = 0
+							} else if prefixLen > len(content) {
+								prefixLen = len(content)
+							}
+							identifiers = append(identifiers, content[:prefixLen])
 						} else {
 							identifiers = append(identifiers, doc.Content(c.Node))
 						}

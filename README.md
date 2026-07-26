@@ -39,10 +39,14 @@ starlark-lsp start --builtin-paths "foo.py" --builtin-paths "/tmp/modules"
 
 starlark-lsp start --load-paths "./starlark/api"
 
+# Preserve legacy broad completion for unknown dotted receivers
+starlark-lsp start --completion-builtin-fallback
+
 Flags:
-      --address string              Address (hostname:port) to listen on
-      --builtin-paths stringArray   Paths to files and directories to parse and treat as additional language builtins
-      --load-paths stringArray      Directories to search when resolving load statements
+      --address string                  Address (hostname:port) to listen on
+      --builtin-paths stringArray       Paths to files and directories to parse and treat as additional language builtins
+      --completion-builtin-fallback     Suggest all builtin members when completing an unknown dotted receiver
+      --load-paths stringArray          Directories to search when resolving load statements
   -h, --help                        help for start
 
 Global Flags:

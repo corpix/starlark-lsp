@@ -16,8 +16,8 @@ import (
 // supports a mixture of positional parameters, default value parameters,
 // typed parameters*, and typed default value parameters*.
 //
-// * These are not valid Starlark, but we support them to enable using Python
-//   type-stub files for improved editor experience.
+//   - These are not valid Starlark, but we support them to enable using Python
+//     type-stub files for improved editor experience.
 const FunctionParameters = `
 (parameters ([
     (identifier) @name
@@ -69,6 +69,7 @@ func (p Parameter) Symbol() Symbol {
 	return Symbol{
 		Name:     p.Name,
 		Kind:     protocol.SymbolKindVariable,
+		TypeName: NormalizeTypeName(p.TypeHint),
 		Detail:   p.Content,
 		Location: p.Location,
 	}

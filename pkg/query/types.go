@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"go.lsp.dev/protocol"
 )
 
 const methodsAndFields = `
@@ -52,8 +53,10 @@ func Types(doc DocumentContent, node *sitter.Node) []Type {
 					meth.Params = meth.Params[1:]
 				}
 				if !strings.HasPrefix(meth.Name, "_") {
+					method := meth.Symbol()
+					method.Kind = protocol.SymbolKindMethod
 					curr.Methods = append(curr.Methods, meth)
-					curr.Members = append(curr.Members, meth.Symbol())
+					curr.Members = append(curr.Members, method)
 				}
 			}
 		}

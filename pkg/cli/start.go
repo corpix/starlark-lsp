@@ -23,8 +23,9 @@ import (
 
 type startCmd struct {
 	*cobra.Command
-	address   string
-	loadPaths []string
+	address                   string
+	completionBuiltinFallback bool
+	loadPaths                 []string
 }
 
 var exampleTemplate = template.Must(template.New("example").Parse(`
@@ -35,6 +36,9 @@ var exampleTemplate = template.Must(template.New("example").Parse(`
 {{.BaseCommandName}} start --address=":8765"
 
 {{.BaseCommandName}} start --load-paths "./starlark/api"
+
+# Preserve legacy broad completion for unknown dotted receivers
+{{.BaseCommandName}} start --completion-builtin-fallback
 {{if .HasBuiltinPathsParam}}
 # Provide type-stub style files to parse and treat as additional language
 # built-ins. If path is a directory, treat files and directories inside
@@ -55,9 +59,10 @@ var providedManagerOptions []document.ManagerOpt
 
 // creates a new startCmd
 // params:
-//   commandName: what to call the base command in examples (e.g., "starlark-lsp", "tilt lsp")
-//   builtinFSProvider: provides an fs.FS from which tilt builtin docs should be read
-//                      if nil, a --builtin-paths param will be added for specifying paths
+//
+//	commandName: what to call the base command in examples (e.g., "starlark-lsp", "tilt lsp")
+//	builtinFSProvider: provides an fs.FS from which tilt builtin docs should be read
+//	                   if nil, a --builtin-paths param will be added for specifying paths
 func newStartCmd(baseCommandName string, builtinFSProvider BuiltinFSProvider, managerOpts ...document.ManagerOpt) *startCmd {
 	cmd := startCmd{
 		Command: &cobra.Command{
@@ -108,7 +113,7 @@ For socket mode, pass the --address option.
 			providedManagerOptions = append(providedManagerOptions, document.WithLoadPaths(cmd.loadPaths))
 		}
 
-		analyzer, err := createAnalyzer(ctx)
+		analyzer, err := createAnalyzer(ctx, cmd.completionBuiltinFallback)
 		if err != nil {
 			return fmt.Errorf("failed to create analyzer: %v", err)
 		}
@@ -127,6 +132,8 @@ For socket mode, pass the --address option.
 		"Address (hostname:port) to listen on")
 	cmd.Flags().StringArrayVar(&cmd.loadPaths, "load-paths", nil,
 		"Directories to search when resolving load statements")
+	cmd.Flags().BoolVar(&cmd.completionBuiltinFallback, "completion-builtin-fallback", false,
+		"Suggest all builtin members when completing an unknown dotted receiver")
 
 	return &cmd
 }
@@ -220,10 +227,11 @@ func launchHandler(ctx context.Context, cancel context.CancelFunc, conn io.ReadW
 	return nil
 }
 
-func createAnalyzer(ctx context.Context) (*analysis.Analyzer, error) {
+func createAnalyzer(ctx context.Context, completionBuiltinFallback bool) (*analysis.Analyzer, error) {
 	opts := []analysis.AnalyzerOption{
 		analysis.WithStarlarkBuiltins(),
 		builtinAnalyzerOption(),
+		analysis.WithBuiltinCompletionFallback(completionBuiltinFallback),
 	}
 
 	return analysis.NewAnalyzer(ctx, opts...)

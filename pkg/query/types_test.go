@@ -36,6 +36,7 @@ class Student():
 		if len(class.Fields) == 1 {
 			assert.Equal(t, "name", class.Fields[0].Name)
 			assert.Equal(t, protocol.SymbolKindString, class.Fields[0].Kind)
+			assert.Equal(t, "String", class.Fields[0].TypeName)
 			assert.Equal(t, "Student name.", class.Fields[0].Detail)
 		}
 	}

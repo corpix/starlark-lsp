@@ -33,12 +33,11 @@ func (a *Analyzer) signatureInformation(doc document.Document, node *sitter.Node
 	if !found && strings.Contains(fnName, ".") {
 		ind := strings.LastIndex(fnName, ".")
 		fnName = fnName[ind+1:]
-		sig = a.builtins.Methods[fnName]
-		if sig.Name != "" {
-			meth, ok := a.checkForTypedMethod(doc, node, fnName, args)
-			if ok {
-				sig = meth
-			}
+		meth, ok := a.checkForTypedMethod(doc, node, fnName, args)
+		if ok {
+			sig = meth
+		} else if a.builtinCompletionFallback {
+			sig = a.builtins.Methods[fnName]
 		}
 	}
 
@@ -46,6 +45,9 @@ func (a *Analyzer) signatureInformation(doc document.Document, node *sitter.Node
 }
 
 func (a *Analyzer) checkForTypedMethod(doc document.Document, node *sitter.Node, methodName string, args callWithArguments) (query.Signature, bool) {
+	if args.argsNode == nil {
+		return query.Signature{}, false
+	}
 	afterDot := args.argsNode.StartPoint()
 	afterDot.Column -= uint32(len(methodName))
 	if query.PointAfterOrEqual(node.StartPoint(), afterDot) {
@@ -114,9 +116,10 @@ type callWithArguments struct {
 // `call`.
 //
 // Currently, this supports two cases:
-// 	(1) Current node is inside of a `call`
-// 	(2) Current node is inside of an ERROR block where first child is an
-// 		`identifier`
+//
+//	(1) Current node is inside of a `call`
+//	(2) Current node is inside of an ERROR block where first child is an
+//		`identifier`
 func possibleCallInfo(doc document.Document, node *sitter.Node, pt sitter.Point) (args callWithArguments) {
 	for n := node; n != nil; n = n.Parent() {
 		if n.Type() == query.NodeTypeCall {

@@ -45,6 +45,12 @@ func SiblingSymbols(doc DocumentContent, node, before *sitter.Node, options ...S
 				if name != nil {
 					symbol.Name = doc.Content(name)
 					symbol.Kind = protocol.SymbolKindClass
+					for _, ty := range Types(doc, n) {
+						if ty.Name == symbol.Name {
+							symbol.Children = ty.Members
+							break
+						}
+					}
 					symbol.Location = protocol.Location{
 						Range: NodeRange(n),
 						URI:   doc.URI(),
@@ -82,6 +88,7 @@ func ExtractVariableAssignment(doc DocumentContent, n *sitter.Node) Symbol {
 	t := assignment.ChildByFieldName("type")
 	var kind protocol.SymbolKind
 	if t != nil {
+		symbol.TypeName = NormalizeTypeName(doc.Content(t))
 		kind = pythonTypeToSymbolKind(doc, t)
 	} else if val != nil {
 		kind = nodeTypeToSymbolKind(val)
@@ -173,6 +180,7 @@ type Symbol struct {
 	Name           string
 	Detail         string
 	Kind           protocol.SymbolKind
+	TypeName       string
 	Tags           []protocol.SymbolTag
 	Location       protocol.Location
 	SelectionRange protocol.Range

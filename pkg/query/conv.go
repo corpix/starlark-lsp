@@ -19,17 +19,17 @@ import (
 // representing the beginning/ending delimiters, and any number of escape
 // sequences inside. Thus, the string
 //
-//    """hello\nTilted\nWorld"""
+//	"""hello\nTilted\nWorld"""
 //
 // gets parsed into a tree like:
 //
-//   module [0, 0] - [1, 0]
-//     expression_statement [0, 0] - [0, 26]
-//       string [0, 0] - [0, 26]
-//         " [0, 0] - [0, 3]
-//         escape_sequence [0, 8] - [0, 10]
-//         escape_sequence [0, 16] - [0, 18]
-//         " [0, 23] - [0, 26]
+//	module [0, 0] - [1, 0]
+//	  expression_statement [0, 0] - [0, 26]
+//	    string [0, 0] - [0, 26]
+//	      " [0, 0] - [0, 3]
+//	      escape_sequence [0, 8] - [0, 10]
+//	      escape_sequence [0, 16] - [0, 18]
+//	      " [0, 23] - [0, 26]
 //
 // Notably, there are no nodes to represent the contents in between the string
 // delimiters and any escape sequences, so we have to extract those manually
@@ -104,25 +104,68 @@ func nodeTypeToSymbolKind(n *sitter.Node) protocol.SymbolKind {
 	return 0
 }
 
-func pythonTypeToSymbolKind(doc DocumentContent, n *sitter.Node) protocol.SymbolKind {
-	// if the type has a subscript like 'List[str]', use 'List' as the type
-	if n.ChildCount() > 0 && n.Child(0).Type() == "subscript" {
-		n = n.Child(0).ChildByFieldName("value")
+func NormalizeTypeName(typeHint string) string {
+	typeHint = strings.TrimSpace(strings.Trim(typeHint, `"'`))
+	if typeHint == "" {
+		return ""
 	}
-	t := strings.ToLower(doc.Content(n))
-	switch t {
-	case "str", "string", "bytes":
+
+	lower := strings.ToLower(typeHint)
+	if strings.HasPrefix(lower, "union[") || strings.Contains(typeHint, "|") {
+		return ""
+	}
+	if idx := strings.Index(typeHint, "["); idx >= 0 {
+		typeHint = strings.TrimSpace(typeHint[:idx])
+		lower = strings.ToLower(typeHint)
+	}
+
+	switch lower {
+	case "str", "string":
+		return "String"
+	case "bytes":
+		return "Bytes"
+	case "list":
+		return "List"
+	case "dict":
+		return "Dict"
+	case "set":
+		return "Set"
+	case "tuple":
+		return "Tuple"
+	case "none", "nonetype":
+		return "None"
+	case "bool":
+		return "bool"
+	case "int":
+		return "int"
+	case "float":
+		return "float"
+	case "callable", "function":
+		return "function"
+	case "any":
+		return ""
+	default:
+		return typeHint
+	}
+}
+
+func pythonTypeToSymbolKind(doc DocumentContent, n *sitter.Node) protocol.SymbolKind {
+	switch NormalizeTypeName(doc.Content(n)) {
+	case "String", "Bytes":
 		return protocol.SymbolKindString
-	case "list", "tuple":
+	case "List", "Tuple":
 		return protocol.SymbolKindArray
-	case "callable":
+	case "function":
 		return protocol.SymbolKindFunction
-	case "dict", "any":
+	case "Dict", "Set":
 		return protocol.SymbolKindObject
 	case "int", "float":
 		return protocol.SymbolKindNumber
 	case "bool":
 		return protocol.SymbolKindBoolean
+	}
+	if strings.EqualFold(strings.TrimSpace(doc.Content(n)), "any") {
+		return protocol.SymbolKindObject
 	}
 	return 0
 }

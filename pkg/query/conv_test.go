@@ -53,3 +53,24 @@ func TestUnquotePanic(t *testing.T) {
 	}()
 	query.Unquote(q.input, q.root)
 }
+
+func TestNormalizeTypeName(t *testing.T) {
+	cases := map[string]string{
+		"str":            "String",
+		"string":         "String",
+		"bytes":          "Bytes",
+		"List[str]":      "List",
+		"Dict[str, int]": "Dict",
+		"set":            "Set",
+		"tuple":          "Tuple",
+		"NoneType":       "None",
+		"bool":           "bool",
+		"Link":           "Link",
+		"Union[str, x]":  "",
+	}
+	for input, expected := range cases {
+		t.Run(input, func(t *testing.T) {
+			assert.Equal(t, expected, query.NormalizeTypeName(input))
+		})
+	}
+}
