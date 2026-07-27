@@ -395,6 +395,9 @@ func (a *Analyzer) analyzeTypeRef(doc document.Document, node *sitter.Node, mode
 			case protocol.SymbolKindClass:
 				return analyzedTypeRef{Name: sym.Name}
 			}
+			if ref := a.inferAssignedType(doc, node, sym, mode); ref.ID != "" || ref.Name != "" {
+				return ref
+			}
 		}
 	case query.NodeTypeCall:
 		fn := node.ChildByFieldName("function")
@@ -419,6 +422,40 @@ func (a *Analyzer) analyzeTypeRef(doc document.Document, node *sitter.Node, mode
 		}
 	}
 	return analyzedTypeRef{}
+}
+
+// inferAssignedType resolves an unannotated variable's type from its assignment RHS.
+func (a *Analyzer) inferAssignedType(doc document.Document, node *sitter.Node, sym query.Symbol, mode typeAnalysisMode) analyzedTypeRef {
+	if sym.Location.URI != doc.URI() {
+		return analyzedTypeRef{}
+	}
+	defNode, ok := query.NodeAtPoint(doc, query.PositionToPoint(sym.Location.Range.Start))
+	if !ok {
+		return analyzedTypeRef{}
+	}
+	assign := assignmentNodeFor(defNode)
+	if assign == nil {
+		return analyzedTypeRef{}
+	}
+	rhs := assign.ChildByFieldName("right")
+	if rhs == nil || rhs == node {
+		return analyzedTypeRef{}
+	}
+	return a.analyzeTypeRef(doc, rhs, mode)
+}
+
+func assignmentNodeFor(node *sitter.Node) *sitter.Node {
+	for n := node; n != nil; n = n.Parent() {
+		switch n.Type() {
+		case query.NodeTypeAssignment:
+			return n
+		case query.NodeTypeExpressionStatement:
+			if c := n.NamedChild(0); c != nil && c.Type() == query.NodeTypeAssignment {
+				return c
+			}
+		}
+	}
+	return nil
 }
 
 func isBytesLiteral(content string) bool {

@@ -95,6 +95,89 @@ def configure(bot):
 	assertCompletionResult(t, []string{"respond"}, result)
 }
 
+func TestTypeFactsAssignedVariableCompletionAndDefinitions(t *testing.T) {
+	f := newFixture(t)
+	impl := f.File("impl.go", strings.Repeat("\n", 40))
+	f.LoadTypeFacts(fmt.Sprintf(`{
+  "version": "starlark-typefacts/1",
+  "types": [
+    {
+      "id": "example.BotBuilder",
+      "name": "BotBuilder",
+      "methods": [
+        {
+          "name": "screen",
+          "signature": {
+            "params": [
+              {"name": "id", "type": {"kind": "str"}},
+              {
+                "name": "handler",
+                "type": {
+                  "kind": "callback",
+                  "params": [
+                    {"name": "event", "type": {"id": "example.Event", "kind": "value", "name": "Event"}},
+                    {"name": "screen", "type": {"id": "example.Screen", "kind": "value", "name": "Screen"}}
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "example.Event",
+      "name": "Event",
+      "methods": [{"name": "text", "signature": {"returns": {"kind": "str"}}}]
+    },
+    {
+      "id": "example.Screen",
+      "name": "Screen",
+      "methods": [
+        {
+          "name": "state",
+          "signature": {"returns": {"id": "example.State", "kind": "value", "name": "State", "optional": true}}
+        }
+      ]
+    },
+    {
+      "id": "example.State",
+      "name": "State",
+      "methods": [
+        {"name": "delete", "location": {"uri": %q, "line": 20, "column": 5}, "signature": {"params": [{"name": "key", "type": {"kind": "str"}}]}},
+        {"name": "get", "location": {"uri": %q, "line": 30, "column": 5}, "signature": {"params": [{"name": "key", "type": {"kind": "str"}}], "returns": {"kind": "str"}}}
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "files": ["Tiltfile.test"],
+      "scope": {"kind": "function", "name": "configure"},
+      "symbol": {"kind": "parameter", "name": "bot"},
+      "type": {"id": "example.BotBuilder", "kind": "value", "name": "BotBuilder"}
+    }
+  ]
+}`, string(uri.File(impl)), string(uri.File(impl))))
+
+	source := `def start_screen(event, screen):
+  state = screen.state()
+  state.delete("k")
+  state.g
+
+def configure(bot):
+  bot.screen("start", start_screen)
+`
+	doc := f.MainDoc(source)
+
+	result := f.a.Completion(doc, positionAfter(source, "state.g"))
+	assertCompletionResult(t, []string{"get"}, result)
+
+	definition := f.a.Definition(f.ctx, doc, positionOn(source, "delete"))
+	require.Len(t, definition, 1)
+	require.Equal(t, uri.File(impl), definition[0].URI)
+	require.Equal(t, protocol.Position{Line: 19, Character: 4}, definition[0].Range.Start)
+}
+
 func (f *fixture) LoadTypeFacts(contents string) {
 	f.t.Helper()
 	path := filepath.Join(f.dir, "typefacts.json")
