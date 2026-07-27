@@ -31,8 +31,9 @@ func TestInitialize(t *testing.T) {
 			CompletionProvider: &protocol.CompletionOptions{
 				TriggerCharacters: []string{"."},
 			},
-			HoverProvider:      true,
-			DefinitionProvider: true,
+			HoverProvider:          true,
+			DefinitionProvider:     true,
+			TypeDefinitionProvider: true,
 		},
 	}
 	requireJsonEqual(t, expected, resp)

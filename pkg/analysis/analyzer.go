@@ -12,6 +12,7 @@ type Analyzer struct {
 	builtinCompletionFallback bool
 	context                   context.Context
 	logger                    *zap.Logger
+	typeFacts                 *typeFactStore
 }
 
 type AnalyzerOption func(*Analyzer) error
@@ -25,8 +26,9 @@ func WithBuiltinCompletionFallback(enabled bool) AnalyzerOption {
 
 func NewAnalyzer(ctx context.Context, opts ...AnalyzerOption) (*Analyzer, error) {
 	analyzer := Analyzer{
-		context:  ctx,
-		builtins: NewBuiltins(),
+		context:   ctx,
+		builtins:  NewBuiltins(),
+		typeFacts: newTypeFactStore(),
 	}
 	logger := protocol.LoggerFromContext(ctx)
 	logger = logger.Named("analyzer")

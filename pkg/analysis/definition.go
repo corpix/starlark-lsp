@@ -29,3 +29,16 @@ func (a *Analyzer) Definition(ctx context.Context, doc document.Document, pos pr
 		symbol.Location,
 	}
 }
+
+func (a *Analyzer) TypeDefinition(ctx context.Context, doc document.Document, pos protocol.Position) []protocol.Location {
+	symbol := a.SymbolAtPosition(doc, pos)
+	location := a.typeFacts.typeLocation(analyzedTypeRef{ID: symbol.TypeID, Name: symbol.TypeName})
+	if location.URI == "" {
+		return nil
+	}
+	pt := query.PositionToPoint(pos)
+	if location.URI == doc.URI() && query.RangeContainsPoint(query.SitterRange(location.Range), pt) {
+		return nil
+	}
+	return []protocol.Location{location}
+}

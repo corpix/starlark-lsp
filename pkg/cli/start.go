@@ -26,6 +26,7 @@ type startCmd struct {
 	address                   string
 	completionBuiltinFallback bool
 	loadPaths                 []string
+	typeFactPaths             []string
 }
 
 var exampleTemplate = template.Must(template.New("example").Parse(`
@@ -36,6 +37,8 @@ var exampleTemplate = template.Must(template.New("example").Parse(`
 {{.BaseCommandName}} start --address=":8765"
 
 {{.BaseCommandName}} start --load-paths "./starlark/api"
+
+{{.BaseCommandName}} start --typefacts "./starlark/typefacts.gen.json"
 
 # Preserve legacy broad completion for unknown dotted receivers
 {{.BaseCommandName}} start --completion-builtin-fallback
@@ -113,7 +116,7 @@ For socket mode, pass the --address option.
 			providedManagerOptions = append(providedManagerOptions, document.WithLoadPaths(cmd.loadPaths))
 		}
 
-		analyzer, err := createAnalyzer(ctx, cmd.completionBuiltinFallback)
+		analyzer, err := createAnalyzer(ctx, cmd.completionBuiltinFallback, cmd.typeFactPaths)
 		if err != nil {
 			return fmt.Errorf("failed to create analyzer: %v", err)
 		}
@@ -132,6 +135,8 @@ For socket mode, pass the --address option.
 		"Address (hostname:port) to listen on")
 	cmd.Flags().StringArrayVar(&cmd.loadPaths, "load-paths", nil,
 		"Directories to search when resolving load statements")
+	cmd.Flags().StringArrayVar(&cmd.typeFactPaths, "typefacts", nil,
+		"Paths to Starlark type facts JSON files")
 	cmd.Flags().BoolVar(&cmd.completionBuiltinFallback, "completion-builtin-fallback", false,
 		"Suggest all builtin members when completing an unknown dotted receiver")
 
@@ -227,11 +232,14 @@ func launchHandler(ctx context.Context, cancel context.CancelFunc, conn io.ReadW
 	return nil
 }
 
-func createAnalyzer(ctx context.Context, completionBuiltinFallback bool) (*analysis.Analyzer, error) {
+func createAnalyzer(ctx context.Context, completionBuiltinFallback bool, typeFactPaths []string) (*analysis.Analyzer, error) {
 	opts := []analysis.AnalyzerOption{
 		analysis.WithStarlarkBuiltins(),
 		builtinAnalyzerOption(),
 		analysis.WithBuiltinCompletionFallback(completionBuiltinFallback),
+	}
+	if len(typeFactPaths) > 0 {
+		opts = append(opts, analysis.WithTypeFactPaths(typeFactPaths))
 	}
 
 	return analysis.NewAnalyzer(ctx, opts...)

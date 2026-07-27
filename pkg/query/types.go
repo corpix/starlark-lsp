@@ -19,10 +19,12 @@ const methodsAndFields = `
 `
 
 type Type struct {
-	Name    string
-	Methods []Signature
-	Fields  []Symbol
-	Members []Symbol
+	ID       string
+	Name     string
+	Location protocol.Location
+	Methods  []Signature
+	Fields   []Symbol
+	Members  []Symbol
 }
 
 func (t Type) FindMethod(name string) (Signature, bool) {

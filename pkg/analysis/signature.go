@@ -11,6 +11,10 @@ import (
 )
 
 func (a *Analyzer) signatureInformation(doc document.Document, node *sitter.Node, args callWithArguments) (query.Signature, bool) {
+	return a.signatureInformationWithMode(doc, node, args, typeAnalysisFull)
+}
+
+func (a *Analyzer) signatureInformationWithMode(doc document.Document, node *sitter.Node, args callWithArguments, mode typeAnalysisMode) (query.Signature, bool) {
 	var sig query.Signature
 	var found bool
 	fnName := args.fnName
@@ -30,10 +34,14 @@ func (a *Analyzer) signatureInformation(doc document.Document, node *sitter.Node
 		sig, found = a.builtins.Functions[fnName]
 	}
 
+	if !found {
+		sig, found = a.typeFacts.functions[fnName]
+	}
+
 	if !found && strings.Contains(fnName, ".") {
 		ind := strings.LastIndex(fnName, ".")
 		fnName = fnName[ind+1:]
-		meth, ok := a.checkForTypedMethod(doc, node, fnName, args)
+		meth, ok := a.checkForTypedMethod(doc, node, fnName, args, mode)
 		if ok {
 			sig = meth
 		} else if a.builtinCompletionFallback {
@@ -44,7 +52,7 @@ func (a *Analyzer) signatureInformation(doc document.Document, node *sitter.Node
 	return sig, sig.Name != ""
 }
 
-func (a *Analyzer) checkForTypedMethod(doc document.Document, node *sitter.Node, methodName string, args callWithArguments) (query.Signature, bool) {
+func (a *Analyzer) checkForTypedMethod(doc document.Document, node *sitter.Node, methodName string, args callWithArguments, mode typeAnalysisMode) (query.Signature, bool) {
 	if args.argsNode == nil {
 		return query.Signature{}, false
 	}
@@ -54,8 +62,11 @@ func (a *Analyzer) checkForTypedMethod(doc document.Document, node *sitter.Node,
 		node = node.Parent()
 	}
 	expr := a.findAttrObjectExpression([]*sitter.Node{node}, afterDot)
-	if t := a.analyzeType(doc, expr); t != "" {
-		if ty, ok := a.builtins.Types[t]; ok {
+	if t := a.analyzeTypeRef(doc, expr, mode); t.Name != "" || t.ID != "" {
+		if ty, ok := a.typeFacts.typeByRef(t); ok {
+			return ty.FindMethod(methodName)
+		}
+		if ty, ok := a.builtins.Types[t.Name]; ok {
 			return ty.FindMethod(methodName)
 		}
 	}

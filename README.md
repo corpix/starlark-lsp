@@ -39,6 +39,8 @@ starlark-lsp start --builtin-paths "foo.py" --builtin-paths "/tmp/modules"
 
 starlark-lsp start --load-paths "./starlark/api"
 
+starlark-lsp start --typefacts "./starlark/typefacts.gen.json"
+
 # Preserve legacy broad completion for unknown dotted receivers
 starlark-lsp start --completion-builtin-fallback
 
@@ -47,6 +49,7 @@ Flags:
       --builtin-paths stringArray       Paths to files and directories to parse and treat as additional language builtins
       --completion-builtin-fallback     Suggest all builtin members when completing an unknown dotted receiver
       --load-paths stringArray          Directories to search when resolving load statements
+      --typefacts stringArray           Paths to Starlark type facts JSON files
   -h, --help                        help for start
 
 Global Flags:

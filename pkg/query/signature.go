@@ -51,12 +51,14 @@ func Function(doc DocumentContent, node *sitter.Node, fnName string) (Signature,
 }
 
 type Signature struct {
-	Name       string
-	Params     []Parameter
-	ReturnType string
-	Docs       docstring.Parsed
-	docURI     uri.URI
-	Range      protocol.Range
+	Name         string
+	Params       []Parameter
+	ReturnType   string
+	ReturnTypeID string
+	Docs         docstring.Parsed
+	docURI       uri.URI
+	Range        protocol.Range
+	Location     protocol.Location
 }
 
 func (s Signature) SignatureInfo() protocol.SignatureInformation {
@@ -112,14 +114,18 @@ func (s Signature) Symbol() Symbol {
 	if len(returns) > 0 {
 		detail += fmt.Sprintf("\n## Returns\n%s", returns)
 	}
-	return Symbol{
-		Name:   s.Name,
-		Kind:   protocol.SymbolKindFunction,
-		Detail: detail,
-		Location: protocol.Location{
+	location := s.Location
+	if location.URI == "" {
+		location = protocol.Location{
 			URI:   s.docURI,
 			Range: s.Range,
-		},
+		}
+	}
+	return Symbol{
+		Name:     s.Name,
+		Kind:     protocol.SymbolKindFunction,
+		Detail:   detail,
+		Location: location,
 	}
 }
 
@@ -146,6 +152,7 @@ func ExtractSignature(doc DocumentContent, n *sitter.Node) Signature {
 		Docs:       fnDocs,
 		Range:      NodeRange(n),
 		docURI:     doc.URI(),
+		Location:   NodeLocation(n, doc.URI()),
 	}
 }
 

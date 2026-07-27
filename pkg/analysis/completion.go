@@ -161,9 +161,10 @@ func (a *Analyzer) availableSymbols(doc document.Document, nodeAtPoint *sitter.N
 				symbols = append(symbols, a.keywordArgSymbols(fn, args)...)
 			}
 		}
-		symbols = append(symbols, query.SymbolsInScope(doc, nodeAtPoint)...)
+		symbols = append(symbols, a.symbolsInScope(doc, nodeAtPoint)...)
 	}
-	docAndBuiltin := append(doc.Symbols(), a.builtins.Symbols...)
+	docAndBuiltin := append(a.documentSymbols(doc), a.builtins.Symbols...)
+	docAndBuiltin = append(docAndBuiltin, a.typeFacts.symbols...)
 	for _, sym := range docAndBuiltin {
 		found := false
 		for _, s := range symbols {
@@ -356,36 +357,43 @@ func (a *Analyzer) findAttrObjectExpression(nodes []*sitter.Node, pt sitter.Poin
 
 // Perform some rudimentary type analysis to determine the Starlark type of the node
 func (a *Analyzer) analyzeType(doc document.Document, node *sitter.Node) string {
+	return a.analyzeTypeRef(doc, node, typeAnalysisFull).Name
+}
+
+func (a *Analyzer) analyzeTypeRef(doc document.Document, node *sitter.Node, mode typeAnalysisMode) analyzedTypeRef {
 	if node == nil {
-		return ""
+		return analyzedTypeRef{}
 	}
 	switch node.Type() {
 	case query.NodeTypeString:
 		if isBytesLiteral(doc.Content(node)) {
-			return "Bytes"
+			return analyzedTypeRef{Name: "Bytes"}
 		}
-		return "String"
+		return analyzedTypeRef{Name: "String"}
 	case query.NodeTypeDictionary:
-		return "Dict"
+		return analyzedTypeRef{Name: "Dict"}
 	case query.NodeTypeList:
-		return "List"
+		return analyzedTypeRef{Name: "List"}
 	case query.NodeTypeIdentifier:
-		sym, found := a.FindDefinition(doc, node, doc.Content(node))
+		sym, found := a.findDefinitionWithMode(doc, node, doc.Content(node), mode)
 		if found {
+			if sym.TypeID != "" {
+				return analyzedTypeRef{ID: sym.TypeID, Name: sym.TypeName}
+			}
 			if sym.TypeName != "" {
-				return sym.TypeName
+				return analyzedTypeRef{Name: sym.TypeName}
 			}
 			switch sym.Kind {
 			case protocol.SymbolKindString:
-				return "String"
+				return analyzedTypeRef{Name: "String"}
 			case protocol.SymbolKindObject:
-				return "Dict"
+				return analyzedTypeRef{Name: "Dict"}
 			case protocol.SymbolKindArray:
-				return "List"
+				return analyzedTypeRef{Name: "List"}
 			case protocol.SymbolKindFunction:
-				return "function"
+				return analyzedTypeRef{Name: "function"}
 			case protocol.SymbolKindClass:
-				return sym.Name
+				return analyzedTypeRef{Name: sym.Name}
 			}
 		}
 	case query.NodeTypeCall:
@@ -395,19 +403,22 @@ func (a *Analyzer) analyzeType(doc document.Document, node *sitter.Node) string 
 			fnName = doc.Content(fn)
 		}
 		args := node.ChildByFieldName("arguments")
-		sig, found := a.signatureInformation(doc, node, callWithArguments{fnName: fnName, argsNode: args})
+		sig, found := a.signatureInformationWithMode(doc, node, callWithArguments{fnName: fnName, argsNode: args}, mode)
+		if found && sig.ReturnTypeID != "" {
+			return analyzedTypeRef{ID: sig.ReturnTypeID, Name: sig.ReturnType}
+		}
 		if found && sig.ReturnType != "" {
 			if t := query.NormalizeTypeName(sig.ReturnType); t != "" {
-				return t
+				return analyzedTypeRef{Name: t}
 			}
 		}
 		if fn != nil && fn.Type() == query.NodeTypeIdentifier {
-			if sym, found := a.FindDefinition(doc, fn, fnName); found && sym.Kind == protocol.SymbolKindClass {
-				return sym.Name
+			if sym, found := a.findDefinitionWithMode(doc, fn, fnName, mode); found && sym.Kind == protocol.SymbolKindClass {
+				return analyzedTypeRef{Name: sym.Name}
 			}
 		}
 	}
-	return ""
+	return analyzedTypeRef{}
 }
 
 func isBytesLiteral(content string) bool {
@@ -421,11 +432,11 @@ func isBytesLiteral(content string) bool {
 }
 
 func (a *Analyzer) availableMembers(doc document.Document, node *sitter.Node) []query.Symbol {
-	if t := a.analyzeType(doc, node); t != "" {
+	if t := a.analyzeTypeRef(doc, node, typeAnalysisFull); t.Name != "" || t.ID != "" {
 		if members, found := a.membersForType(doc, t); found {
 			return members
 		}
-		switch t {
+		switch t.Name {
 		case "None", "bool", "int", "float", "Tuple", "function":
 			return []query.Symbol{}
 		}
@@ -437,12 +448,15 @@ func (a *Analyzer) availableMembers(doc document.Document, node *sitter.Node) []
 	return []query.Symbol{}
 }
 
-func (a *Analyzer) membersForType(doc document.Document, typeName string) ([]query.Symbol, bool) {
-	if class, found := a.builtins.Types[typeName]; found {
+func (a *Analyzer) membersForType(doc document.Document, ref analyzedTypeRef) ([]query.Symbol, bool) {
+	if ty, found := a.typeFacts.typeByRef(ref); found {
+		return ty.Members, true
+	}
+	if class, found := a.builtins.Types[ref.Name]; found {
 		return class.Members, true
 	}
-	for _, sym := range append(append([]query.Symbol{}, doc.Symbols()...), a.builtins.Symbols...) {
-		if sym.Name == typeName {
+	for _, sym := range append(append([]query.Symbol{}, a.documentSymbols(doc)...), a.builtins.Symbols...) {
+		if sym.Name == ref.Name {
 			return sym.Children, true
 		}
 	}
@@ -450,17 +464,26 @@ func (a *Analyzer) membersForType(doc document.Document, typeName string) ([]que
 }
 
 func (a *Analyzer) FindDefinition(doc document.Document, node *sitter.Node, name string) (query.Symbol, bool) {
-	for _, sym := range query.SymbolsInScope(doc, node) {
+	return a.findDefinitionWithMode(doc, node, name, typeAnalysisFull)
+}
+
+func (a *Analyzer) findDefinitionWithMode(doc document.Document, node *sitter.Node, name string, mode typeAnalysisMode) (query.Symbol, bool) {
+	for _, sym := range a.symbolsInScopeWithMode(doc, node, mode) {
 		if sym.Name == name {
 			return sym, true
 		}
 	}
-	for _, sym := range doc.Symbols() {
+	for _, sym := range a.documentSymbols(doc) {
 		if sym.Name == name {
 			return sym, true
 		}
 	}
 	for _, sym := range a.builtins.Symbols {
+		if sym.Name == name {
+			return sym, true
+		}
+	}
+	for _, sym := range a.typeFacts.symbols {
 		if sym.Name == name {
 			return sym, true
 		}

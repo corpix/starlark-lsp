@@ -29,12 +29,14 @@ const FunctionParameters = `
 `
 
 type Parameter struct {
-	Name         string
-	TypeHint     string
-	DefaultValue string
-	Content      string
-	DocURI       uri.URI
-	Location     protocol.Location
+	Name           string
+	TypeID         string
+	TypeHint       string
+	DefaultValue   string
+	Content        string
+	CallbackParams []Parameter
+	DocURI         uri.URI
+	Location       protocol.Location
 }
 
 func (p Parameter) ParameterInfo(fnDocs docstring.Parsed) protocol.ParameterInformation {
@@ -69,6 +71,7 @@ func (p Parameter) Symbol() Symbol {
 	return Symbol{
 		Name:     p.Name,
 		Kind:     protocol.SymbolKindVariable,
+		TypeID:   p.TypeID,
 		TypeName: NormalizeTypeName(p.TypeHint),
 		Detail:   p.Content,
 		Location: p.Location,

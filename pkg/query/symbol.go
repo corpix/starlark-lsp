@@ -180,6 +180,7 @@ type Symbol struct {
 	Name           string
 	Detail         string
 	Kind           protocol.SymbolKind
+	TypeID         string
 	TypeName       string
 	Tags           []protocol.SymbolTag
 	Location       protocol.Location
